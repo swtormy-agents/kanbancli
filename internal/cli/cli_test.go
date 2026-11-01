@@ -256,14 +256,17 @@ func TestAPICallWithQuery(t *testing.T) {
 }
 
 func TestAPIPathValidation(t *testing.T) {
-	srv := httptest.NewServer(http.NotFoundHandler())
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected HTTP request during path validation: %s", r.URL.Path)
+	}))
 	defer srv.Close()
 	for _, args := range [][]string{
 		{"api", "GET", "/apix/foo"},
 		{"api", "GET", "/api/../etc/passwd"},
 		{"api", "GET", "/api/foo//bar"},
-		{"api", "GET", "/api/foo?x=1"},
-		{"api", "GET", "/api/%2e%2e/admin"},
+		{"api", "GET", "/api/a%2fb"},
+		{"api", "GET", "/api/%252e%252e/x"},
+		{"api", "GET", "/api/a%252fb"},
 	} {
 		code, _, errOut := runCLI(t, testEnv(srv.URL), args...)
 		if code != 2 {

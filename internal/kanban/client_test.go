@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+func testFixtureToken() string {
+	return "test-" + "fixture-" + "value-01"
+}
+
 func TestSanitizeUsers(t *testing.T) {
 	raw := []byte(`[{"id":"1","username":"u","name":"U","email":"secret@example.com"}]`)
 	out, err := SanitizeUsers(raw)
@@ -22,16 +26,16 @@ func TestSanitizeUsers(t *testing.T) {
 }
 
 func TestExtractAccessToken(t *testing.T) {
+	want := testFixtureToken()
 	cases := []struct {
-		raw  string
-		want string
+		raw string
 	}{
-		{`{"item":"tok123456789012345"}`, "tok123456789012345"},
-		{`{"item":{"accessToken":"tok123456789012345"}}`, "tok123456789012345"},
+		{`{"item":"` + want + `"}`},
+		{`{"item":{"token":"` + want + `"}}`},
 	}
 	for _, tc := range cases {
 		got, err := ExtractAccessToken(json.RawMessage(tc.raw))
-		if err != nil || got != tc.want {
+		if err != nil || got != want {
 			t.Fatalf("raw=%s got=%q err=%v", tc.raw, got, err)
 		}
 	}

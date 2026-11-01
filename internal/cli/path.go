@@ -2,7 +2,6 @@ package cli
 
 import (
 	"net/url"
-	"path"
 	"strings"
 )
 
@@ -14,33 +13,64 @@ func normalizeAPIPath(raw string) (string, error) {
 	if raw[0] != '/' {
 		raw = "/" + raw
 	}
-	if i := strings.IndexAny(raw, "?#"); i >= 0 {
-		return "", usageErr("path must not contain ? or #; use --query for query parameters")
+	if strings.ContainsAny(raw, "?#\\") {
+		return "", usageErr("path must not contain ?, #, or backslashes")
+	}
+	if containsForbiddenPercentEncoding(raw) {
+		return "", usageErr("path must not contain encoded slash, dot, percent, or backslash sequences")
 	}
 	decoded, err := url.PathUnescape(raw)
 	if err != nil {
 		return "", usageErr("invalid path encoding: %v", err)
 	}
-	if strings.ContainsAny(decoded, "?#") {
-		return "", usageErr("path must not contain ? or # after decoding")
+	if strings.Contains(decoded, "%") {
+		return "", usageErr("path must not contain percent-encoding after decoding")
 	}
-	if strings.Contains(decoded, "..") {
-		return "", usageErr("path must not contain ..")
+	if strings.ContainsAny(decoded, "?#\\") {
+		return "", usageErr("path must not contain ?, #, or backslashes after decoding")
 	}
 	if strings.Contains(decoded, "//") {
 		return "", usageErr("path must not contain //")
 	}
-	if strings.Contains(decoded, ".pe.") {
-		return "", usageErr("enterprise-only paths are out of scope in this CLI")
+	if strings.Contains(decoded, "..") {
+		return "", usageErr("path must not contain ..")
 	}
-	cleaned := path.Clean(decoded)
-	if cleaned == "/api" {
-		return cleaned, nil
+	if err := validateAPISegments(decoded); err != nil {
+		return "", err
 	}
-	if !strings.HasPrefix(cleaned, "/api/") {
-		return "", usageErr("path must start with /api/")
+	return decoded, nil
+}
+
+func containsForbiddenPercentEncoding(raw string) bool {
+	lower := strings.ToLower(raw)
+	for _, seq := range []string{"%2f", "%2e", "%25", "%5c"} {
+		if strings.Contains(lower, seq) {
+			return true
+		}
 	}
-	return cleaned, nil
+	return false
+}
+
+func validateAPISegments(path string) error {
+	if path == "/api" {
+		return nil
+	}
+	if !strings.HasPrefix(path, "/api/") {
+		return usageErr("path must start with /api/")
+	}
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	for _, seg := range parts {
+		if seg == "" {
+			return usageErr("path must not contain empty path segments")
+		}
+		if seg == ".." {
+			return usageErr("path must not contain ..")
+		}
+		if strings.Contains(seg, ".pe.") {
+			return usageErr("enterprise-only paths are out of scope in this CLI")
+		}
+	}
+	return nil
 }
 
 func parseQueryFlags(pairs []string) (url.Values, error) {

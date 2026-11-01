@@ -3,11 +3,9 @@ package cli
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 func parsePositiveID(flagName, raw string) (uint64, error) {
-	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return 0, usageErr("%s is required", flagName)
 	}
